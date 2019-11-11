@@ -1,7 +1,10 @@
 package com.nothing.mytask.config;
 
+import org.springframework.context.annotation.Bean;
+import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.SchedulingConfigurer;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.scheduling.config.ScheduledTaskRegistrar;
 import org.springframework.scheduling.config.TriggerTask;
 import org.springframework.stereotype.Component;
@@ -10,6 +13,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ThreadPoolExecutor;
 
 @EnableScheduling
 @Component
@@ -18,6 +22,16 @@ public class TaskConfigurer implements SchedulingConfigurer {
 
     private volatile ScheduledTaskRegistrar taskRegistrar;
     private Map<Long, ScheduledFuture<?>> taskFutures = new ConcurrentHashMap<>();
+
+    @Bean
+    public TaskScheduler taskScheduler() {
+        ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
+        scheduler.setPoolSize(Runtime.getRuntime().availableProcessors() / 2 + 1);
+        scheduler.setThreadNamePrefix("task-tool-thread");
+        scheduler.setWaitForTasksToCompleteOnShutdown(true);
+        scheduler.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        return scheduler;
+    }
 
     @Override
     public void configureTasks(ScheduledTaskRegistrar scheduledTaskRegistrar) {
@@ -32,6 +46,7 @@ public class TaskConfigurer implements SchedulingConfigurer {
          * u will find tasks will be accumulated in debug
          */
         this.taskRegistrar = scheduledTaskRegistrar;
+        this.taskRegistrar.setScheduler(this.taskScheduler());
     }
 
     public void flushTasks(Map<Long, TriggerTask> triggerTaskMap, boolean mayInterruptIfRunning) {
